@@ -14,7 +14,7 @@ export async function POST(req) {
   forward.append("destination_file", destinationFile, destinationFile.name);
   forward.append("quarter", quarter);
 
-  const res = await fetch("http://localhost:8000/upload/", {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload/`, {
     method: "POST",
     body: forward,
   });

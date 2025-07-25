@@ -1,103 +1,186 @@
-import Image from "next/image";
+"use client";
+export const dynamic = "force-dynamic";
 
-export default function Home() {
+import { useState, useEffect } from "react";
+import { supabase } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
+
+export default function HomePage() {
+  const [sourceFileName, setSourceFileName] = useState("");
+  const [destFileName, setDestFileName] = useState("");
+  const [quarter, setQuarter] = useState("Q1");
+  const [loading, setLoading] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) setUserEmail(user.email);
+    };
+    getUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        router.push("/login");
+      } else if (session?.user) {
+        setUserEmail(session.user.email);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    const formData = new FormData();
+    const sourceFile = e.target.elements.source.files[0];
+    const destinationFile = e.target.elements.destination.files[0];
+
+    formData.append("source_file", sourceFile);
+    formData.append("destination_file", destinationFile);
+    formData.append("quarter", quarter);
+
+    setLoading(true);
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const blob = await res.blob();
+    setLoading(false);
+
+    const baseName = destinationFile.name.replace(/\.xlsx$/, "");
+    const downloadName = `processed_${baseName}.xlsx`;
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = downloadName;
+    a.click();
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="min-h-screen bg-white text-black flex items-center justify-center p-4 relative">
+      {userEmail && (
+        <div className="absolute top-6 right-6 bg-gray-100 shadow px-4 py-2 rounded text-sm text-gray-700">
+          Logged in as: <span className="font-semibold">{userEmail}</span>
+          <button
+            onClick={handleLogout}
+            className="ml-2 text-red-600 hover:underline hover:cursor-pointer text-xs"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            Logout
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      )}
+
+      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-8 max-w-lg w-full">
+        <h1 className="text-2xl font-bold mb-6 text-center flex items-center justify-center gap-2">
+          <span>📊</span> <span>P&B Excel Web App</span>
+        </h1>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Source File */}
+          <label
+            htmlFor="source_file"
+            className="text-md font-semibold text-black"
+          >
+            Select Source File (2025 Nisan, Mayıs, Haziran)
+          </label>
+          <input
+            id="source"
+            type="file"
+            name="source"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => setSourceFileName(e.target.files[0]?.name || "")}
+            required
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <label
+            htmlFor="source"
+            className="cursor-pointer border border-gray-300 p-2 rounded bg-gray-50 hover:bg-gray-100 transition"
+          >
+            {sourceFileName || "Choose Source File"}
+            {sourceFileName && (
+              <button
+                type="button"
+                onClick={() => setSourceFileName("")}
+                className="text-red-600 text-xs hover:underline hover:cursor-pointer ml-2"
+              >
+                Remove File
+              </button>
+            )}
+          </label>
+
+          {/* Destination File */}
+          <label
+            htmlFor="destination_file"
+            className="text-md font-semibold text-black"
+          >
+            Select Destination File (Bütçe)
+          </label>
+          <input
+            id="destination"
+            type="file"
+            name="destination"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => setDestFileName(e.target.files[0]?.name || "")}
+            required
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          <label
+            htmlFor="destination"
+            className="cursor-pointer border border-gray-300 p-2 rounded bg-gray-50 hover:bg-gray-100 transition"
+          >
+            {destFileName || "Choose Destination File"}
+            {destFileName && (
+              <button
+                type="button"
+                onClick={() => setDestFileName("")}
+                className="text-red-600 text-xs hover:underline hover:cursor-pointer ml-2"
+              >
+                Remove File
+              </button>
+            )}
+          </label>
+
+          {/* Quarter Dropdown */}
+          <label htmlFor="quarter" className="text-md font-semibold text-black">
+            Select Quarter
+          </label>
+          <select
+            name="quarter"
+            value={quarter}
+            onChange={(e) => setQuarter(e.target.value)}
+            className="border border-gray-300 p-2 rounded bg-gray-50 hover:bg-gray-100 transition"
+            required
+          >
+            <option value="Q1">Q1</option>
+            <option value="Q2">Q2</option>
+            <option value="Q3">Q3</option>
+            <option value="Q4">Q4</option>
+          </select>
+
+          {/* Submit */}
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded cursor-pointer hover:bg-blue-700 transition"
+            disabled={loading}
+          >
+            {loading ? "Processing..." : "Upload & Process"}
+          </button>
+        </form>
+      </div>
+    </main>
   );
 }
